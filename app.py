@@ -48,27 +48,6 @@ def load_trained_model():
 
 model = load_trained_model()
 
-# =====================================
-# Evaluation Section
-# =====================================
-if st.checkbox("📊 Show Model Evaluation on Test Data"):
-    st.subheader("Test Dataset Evaluation")
-    test_x, test_y = load_test_data()
-    loss, acc = model.evaluate(test_x, test_y, verbose=0)
-    st.write(f"**Test Accuracy:** {acc * 100:.2f}%")
-
-    pred_y = np.argmax(model.predict(test_x), axis=1)
-
-    report = classification_report(test_y, pred_y, target_names=['Normal', 'Pneumonia'], output_dict=True)
-    st.write("### Classification Report")
-    st.json(report)
-
-    cm = confusion_matrix(test_y, pred_y)
-    fig, ax = plt.subplots(figsize=(5,4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'], ax=ax)
-    ax.set_xlabel('Predicted')
-    ax.set_ylabel('Actual')
-    st.pyplot(fig)
 
 # =====================================
 # Upload & Predict Section
