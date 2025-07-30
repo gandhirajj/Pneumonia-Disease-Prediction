@@ -5,3 +5,4 @@ pillow
 matplotlib
 numpy
 seaborn
+opencv-python
