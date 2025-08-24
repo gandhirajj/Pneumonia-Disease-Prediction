@@ -174,7 +174,7 @@ if uploaded_file:
         # Recommendations
         st.subheader("🧪 Explainability & Recommendations")
         if label == "Pneumonia":
-            st.error("⚠️ Pneumonia detected. Please consult a radiologist immediately.")
+            st.error("⚠️ Pneumonia detected. Please consult a doctor immediately.")
         else:
             st.success("✅ No pneumonia detected. Continue regular monitoring if symptoms persist.")
 
