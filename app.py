@@ -13,7 +13,7 @@ from reportlab.pdfgen import canvas
 # 🔹 App Title & Sidebar
 # ======================
 st.set_page_config(page_title="Pneumonia Detector", page_icon="🩻", layout="wide")
-st.title("🩻 Pneumonia Detection Dashboard")
+st.title("Pneumonia Detection Dashboard")
 st.sidebar.header("📁 Patient Metadata")
 
 # ------------------
