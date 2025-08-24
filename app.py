@@ -83,7 +83,7 @@ def generate_gradcam(model, img_array, last_conv_layer_name="Conv_1"):
 
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array)
-        loss = predictions if predictions.shape.rank == 0 else predictions[:, 0]
+        loss = predictions[0]
 
     grads = tape.gradient(loss, conv_outputs)
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
