@@ -10,9 +10,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 # -----------------------------
-# Import CrewAI for recommendations
+# CrewAI-like Hospital Recommendation
 # -----------------------------
-from crewai import Agent, Task, Crew
+from crewai import Agent
 
 # ======================
 # App Title & Sidebar
@@ -35,7 +35,7 @@ location = st.sidebar.text_input("City or Zip Code")
 # ------------------
 @st.cache_resource
 def load_main_model():
-    return load_model("best_model_mobilenet_lstm.h5")  # replace with your path
+    return load_model("best_model_mobilenet_lstm.h5")  # Replace with your model path
 
 model = load_main_model()
 model_version = "v1.0"
@@ -126,7 +126,7 @@ def export_pdf(report_text, img, heatmap_img):
     return buffer
 
 # ------------------
-# CrewAI Agents
+# CrewAI Agent (Hospital Recommendation)
 # ------------------
 class HospitalRecommendationAgent(Agent):
     def run(self, location_input):
@@ -179,8 +179,7 @@ if uploaded_file:
         if label == "Pneumonia":
             st.error("⚠️ Pneumonia detected. Please consult a doctor immediately.")
             if location:
-                # CrewAI hospital recommendation
-                agent = HospitalRecommendationAgent(name="Hospital Recommender")
+                agent = HospitalRecommendationAgent()
                 hospitals = agent.run(location)
                 st.subheader("🏥 Recommended Hospitals Near You")
                 for h in hospitals:
