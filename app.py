@@ -29,7 +29,7 @@ smoking_history = st.sidebar.selectbox("Smoking History", ["Non-smoker", "Former
 # ------------------
 @st.cache_resource
 def load_main_model():
-    return load_model("best_model_mobilenet_lstm.h5")  # replace with your path
+    return load_model("best_model_mobilenet_lstm.h5")  # replace with your model path
 
 model = load_main_model()
 model_version = "v1.0"
@@ -52,17 +52,14 @@ def is_valid_xray(pil_img):
             img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         else:
             return False
-
         mean_intensity = np.mean(img_gray)
         if mean_intensity > 230 or mean_intensity < 40:
             return False
-
         img_resized = cv2.resize(img_gray, (224, 224))
         edges = cv2.Canny(img_resized, 50, 150)
         edge_density = np.sum(edges) / edges.size
         if edge_density < 0.01:
             return False
-
         return True
     except:
         return False
@@ -80,40 +77,32 @@ def generate_gradcam(model, img_array, last_conv_layer_name="Conv_1"):
         [model.inputs],
         [model.get_layer(last_conv_layer_name).output, model.output]
     )
-
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array)
         loss = predictions[0]
-
     grads = tape.gradient(loss, conv_outputs)
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-
     conv_outputs = conv_outputs[0]
     heatmap = tf.reduce_sum(tf.multiply(pooled_grads, conv_outputs), axis=-1)
-    heatmap = np.maximum(heatmap, 0) / np.max(heatmap)
-
-    heatmap = cv2.resize(heatmap, (224, 224))
+    heatmap = np.maximum(heatmap, 0)
+    max_heat = np.max(heatmap)
+    if max_heat == 0:
+        max_heat = 1e-10  # To avoid division by zero
+    heatmap /= max_heat
+    heatmap = cv2.resize(heatmap.numpy(), (224, 224))
     return heatmap
 
-def overlay_heatmap(original_img, heatmap, alpha=0.6, threshold=0.7):
-    """Overlay heatmap only on pneumonia-affected regions."""
+def overlay_heatmap(original_img, heatmap, alpha=0.4, threshold=0.3):
+    """Overlay heatmap on affected regions only."""
     img = np.array(original_img.convert("RGB").resize((224, 224)))
+    heatmap_colored = np.uint8(255 * heatmap)
+    heatmap_colored = cv2.applyColorMap(heatmap_colored, cv2.COLORMAP_JET)
 
-    # Convert heatmap to [0,255]
-    heatmap_uint8 = np.uint8(255 * heatmap)
-
-    # Create a binary mask for only strong activations
-    mask = (heatmap > threshold).astype(np.uint8) * 255  
-
-    # Color only masked areas
-    colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-    masked_colored = cv2.bitwise_and(colored, colored, mask=mask)
-
-    # Overlay only on affected pixels
+    # Mask non-affected regions (heatmap below threshold) to original image color
+    mask = heatmap > threshold
+    mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
     overlay = img.copy()
-    idx = mask > 0
-    overlay[idx] = cv2.addWeighted(img, 1 - alpha, masked_colored, alpha, 0)[idx]
-
+    overlay[mask_3d] = cv2.addWeighted(img, 1 - alpha, heatmap_colored, alpha, 0)[mask_3d]
     return overlay
 
 def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
@@ -122,12 +111,10 @@ def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     c.setFont("Helvetica", 12)
-
     text_obj = c.beginText(40, height - 40)
     for line in report_text.split("\n"):
         text_obj.textLine(line)
     c.drawText(text_obj)
-
     # Add images
     if img is not None:
         img_rgb = img.convert("RGB").resize((200, 200))
@@ -137,7 +124,6 @@ def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
         heatmap_pil = Image.fromarray(heatmap_img)
         heatmap_pil.save("heatmap_temp.png")
         c.drawImage("heatmap_temp.png", 280, height//2 - 100, width=200, preserveAspectRatio=True)
-
     c.save()
     buffer.seek(0)
     return buffer
@@ -146,27 +132,23 @@ def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
 # File Upload
 # ------------------
 uploaded_file = st.file_uploader("📤 Upload Chest X-ray", type=["png", "jpg", "jpeg"])
-
 if uploaded_file:
     img = Image.open(uploaded_file)
-
     if not is_valid_xray(img):
         st.error("❌ This is not a valid chest X-ray. Please upload a proper grayscale medical scan.")
     else:
-        col1, col2 = st.columns(2)
-
+        # Columns for images - smaller image width for better UI control
+        col1, col2 = st.columns([1, 1])
         with col1:
-            st.image(img, caption="Original Chest X-ray", width=300)
+            st.image(img, caption="Original Chest X-ray", use_column_width=False, width=300)  # Smaller display
 
         # Prediction
         start_time = time.time()
         img_array = preprocess(img)
         prediction = model.predict(img_array)[0][0]
         inference_time = time.time() - start_time
-
         label = "Pneumonia" if prediction > 0.5 else "Normal"
         confidence = prediction if prediction > 0.5 else 1 - prediction
-
         with col2:
             st.metric("Prediction", label)
             st.metric("Confidence", f"{confidence*100:.2f}%")
@@ -180,9 +162,9 @@ if uploaded_file:
         st.subheader("🔍 Visual Explanation (Grad-CAM)")
         col3, col4 = st.columns(2)
         with col3:
-            st.image(img, caption="Original X-ray", width=300)
+            st.image(img.resize((224,224)), caption="Original X-ray", use_column_width=False, width=250)  # Smaller image
         with col4:
-            st.image(overlay, caption="Affected Regions Only", width=300)
+            st.image(overlay, caption="Highlighted Pneumonia Regions", use_column_width=False, width=250)
 
         # Recommendations
         st.subheader("🧪 Explainability & Recommendations")
@@ -190,7 +172,6 @@ if uploaded_file:
             st.error("⚠️ Pneumonia detected. Please consult a doctor immediately.")
         else:
             st.success("✅ No pneumonia detected. Continue regular monitoring if symptoms persist.")
-
         if symptoms:
             st.info(f"📌 Reported symptoms: {', '.join(symptoms)}")
 
@@ -203,13 +184,11 @@ if uploaded_file:
         Gender: {gender}
         Smoking History: {smoking_history}
         Symptoms: {', '.join(symptoms) if symptoms else 'None'}
-
         Prediction: {label}
         Confidence: {confidence*100:.2f}%
         Inference Time: {inference_time:.2f} sec
         Model Version: {model_version}
         """
-
         pdf_buffer = export_pdf(report_text, img, overlay)
         st.download_button(
             label="📥 Download Report (PDF)",
