@@ -95,20 +95,25 @@ def generate_gradcam(model, img_array, last_conv_layer_name="Conv_1"):
     heatmap = cv2.resize(heatmap, (224, 224))
     return heatmap
 
-def overlay_heatmap(original_img, heatmap, alpha=0.4, threshold=0.6):
+def overlay_heatmap(original_img, heatmap, alpha=0.6, threshold=0.7):
     """Overlay heatmap only on pneumonia-affected regions."""
     img = np.array(original_img.convert("RGB").resize((224, 224)))
-    
-    # Normalize & threshold heatmap
+
+    # Convert heatmap to [0,255]
     heatmap_uint8 = np.uint8(255 * heatmap)
-    mask = (heatmap_uint8 > int(threshold * 255)).astype(np.uint8) * 255
-    
-    # Apply colormap only on affected areas
+
+    # Create a binary mask for only strong activations
+    mask = (heatmap > threshold).astype(np.uint8) * 255  
+
+    # Color only masked areas
     colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
     masked_colored = cv2.bitwise_and(colored, colored, mask=mask)
 
-    # Overlay on original
-    overlay = cv2.addWeighted(img, 1, masked_colored, alpha, 0)
+    # Overlay only on affected pixels
+    overlay = img.copy()
+    idx = mask > 0
+    overlay[idx] = cv2.addWeighted(img, 1 - alpha, masked_colored, alpha, 0)[idx]
+
     return overlay
 
 def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
@@ -177,7 +182,7 @@ if uploaded_file:
         with col3:
             st.image(img, caption="Original X-ray", width=300)
         with col4:
-            st.image(overlay, caption="Highlighted Regions", width=300)
+            st.image(overlay, caption="Affected Regions Only", width=300)
 
         # Recommendations
         st.subheader("🧪 Explainability & Recommendations")
