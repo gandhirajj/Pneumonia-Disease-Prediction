@@ -95,12 +95,20 @@ def generate_gradcam(model, img_array, last_conv_layer_name="Conv_1"):
     heatmap = cv2.resize(heatmap, (224, 224))
     return heatmap
 
-def overlay_heatmap(original_img, heatmap, alpha=0.4):
-    """Overlay heatmap on original image."""
+def overlay_heatmap(original_img, heatmap, alpha=0.4, threshold=0.6):
+    """Overlay heatmap only on pneumonia-affected regions."""
     img = np.array(original_img.convert("RGB").resize((224, 224)))
-    heatmap = np.uint8(255 * heatmap)
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-    overlay = cv2.addWeighted(img, 1-alpha, heatmap, alpha, 0)
+    
+    # Normalize & threshold heatmap
+    heatmap_uint8 = np.uint8(255 * heatmap)
+    mask = (heatmap_uint8 > int(threshold * 255)).astype(np.uint8) * 255
+    
+    # Apply colormap only on affected areas
+    colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+    masked_colored = cv2.bitwise_and(colored, colored, mask=mask)
+
+    # Overlay on original
+    overlay = cv2.addWeighted(img, 1, masked_colored, alpha, 0)
     return overlay
 
 def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
@@ -143,7 +151,7 @@ if uploaded_file:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.image(img, caption="Original Chest X-ray", use_column_width=True)
+            st.image(img, caption="Original Chest X-ray", width=300)
 
         # Prediction
         start_time = time.time()
@@ -167,9 +175,9 @@ if uploaded_file:
         st.subheader("🔍 Visual Explanation (Grad-CAM)")
         col3, col4 = st.columns(2)
         with col3:
-            st.image(img, caption="Original X-ray", use_column_width=True)
+            st.image(img, caption="Original X-ray", width=300)
         with col4:
-            st.image(overlay, caption="Highlighted Regions", use_column_width=True)
+            st.image(overlay, caption="Highlighted Regions", width=300)
 
         # Recommendations
         st.subheader("🧪 Explainability & Recommendations")
