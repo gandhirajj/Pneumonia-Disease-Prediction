@@ -92,28 +92,20 @@ def generate_gradcam(model, img_array, last_conv_layer_name="Conv_1"):
     heatmap = cv2.resize(heatmap.numpy(), (224, 224))
     return heatmap
 
-def overlay_heatmap(original_img, heatmap, alpha=0.4, threshold=0.3):
-    """Overlay heatmap on original image only in regions above threshold."""
+def overlay_heatmap(original_img, heatmap, alpha=0.4, threshold=0.6):
+    """Overlay heatmap only on pneumonia-affected regions."""
     img = np.array(original_img.convert("RGB").resize((224, 224)))
-    heatmap_colored = np.uint8(255 * heatmap)
+    heatmap_normalized = np.clip(heatmap, 0, 1)
+    heatmap_colored = np.uint8(255 * heatmap_normalized)
     heatmap_colored = cv2.applyColorMap(heatmap_colored, cv2.COLORMAP_JET)
 
-    # Mask region with heatmap values > threshold
-    mask = heatmap > threshold
+    mask = heatmap_normalized > threshold
     mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
 
-    # Initialize overlay as original image
     overlay = img.copy()
-    # Apply heatmap color only on masked areas
     overlay[mask_3d] = cv2.addWeighted(img, 1 - alpha, heatmap_colored, alpha, 0)[mask_3d]
     return overlay
 
-# In your UI code, fix display width for images:
-col3, col4 = st.columns(2)
-with col3:
-    st.image(img.resize((224,224)), caption="Original X-ray", use_column_width=False, width=250)
-with col4:
-    st.image(overlay, caption="Highlighted Pneumonia Regions", use_column_width=False, width=250)
 
 
 def export_pdf(report_text, img, heatmap_img, filename="report.pdf"):
